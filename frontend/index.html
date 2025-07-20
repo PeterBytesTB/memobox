@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memobox - Tema Claro/Escuro</title>
+    <style>
+      /* Paleta Claro */
+      :root {
+        --bg-color: #f4f4f4;
+        --text-color: #121212;
+        --button-color: #1f8ef1;
+        --card-bg: #ffffff;
+        --accent-color: #6200ee;
+      }
+
+      /* Paleta Escuro */
+      .dark {
+        --bg-color: #121212;
+        --text-color: #e0e0e0;
+        --button-color: #1f8ef1;
+        --card-bg: #1e1e1e;
+        --accent-color: #bb86fc;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 2rem;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      button {
+        background-color: var(--button-color);
+        color: var(--card-bg);
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 1rem;
+        transition: background-color 0.3s ease;
+      }
+
+      button:hover {
+        background-color: var(--accent-color);
+      }
+
+      .card {
+        background-color: var(--card-bg);
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 2rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      }
+    </style>
+  </head>
+  <body>
+    <button id="toggleTheme">Alternar Modo Escuro</button>
+
+    <div class="card">
+      <h1>Memobox</h1>
+      <p>Projeto com upload de arquivos, vídeos e áudios.</p>
+    </div>
+
+    <script>
+      const btn = document.getElementById('toggleTheme')
+      const body = document.body
+
+      // Carrega tema salvo no localStorage
+      const savedTheme = localStorage.getItem('theme')
+      if (savedTheme === 'dark') {
+        body.classList.add('dark')
+        btn.textContent = 'Alternar Modo Claro'
+      }
+
+      btn.addEventListener('click', () => {
+        body.classList.toggle('dark')
+        if (body.classList.contains('dark')) {
+          localStorage.setItem('theme', 'dark')
+          btn.textContent = 'Alternar Modo Claro'
+        } else {
+          localStorage.setItem('theme', 'light')
+          btn.textContent = 'Alternar Modo Escuro'
+        }
+      })
+    </script>
+  </body>
+</html>
