@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cadastro - Memobox</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 60px;
+      }
+
+      form {
+        background: #222;
+        padding: 20px;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 400px;
+      }
+
+      input {
+        display: block;
+        margin-bottom: 15px;
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 5px;
+        background: #333;
+        color: #fff;
+      }
+
+      button {
+        padding: 10px;
+        background: #4caf50;
+        border: none;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        width: 100%;
+        font-weight: bold;
+      }
+
+      .msg {
+        margin-top: 15px;
+        text-align: center;
+        font-size: 1rem;
+      }
+
+      a {
+        display: block;
+        margin-top: 10px;
+        color: #4cae4f;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Cadastro - Memobox</h2>
+    <form id="registerForm">
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="senha" placeholder="Senha" required />
+      <button type="submit">Cadastrar</button>
+      <a href="login.html">Já tem conta? Faça login</a>
+      <div class="msg" id="mensagem"></div>
+    </form>
+
+    <script defer>
+      document
+        .getElementById('registerForm')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault()
+
+          const email = document.getElementById('email').value
+          const senha = document.getElementById('senha').value
+          const mensagem = document.getElementById('mensagem')
+
+          try {
+            const response = await fetch('/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, senha }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+              mensagem.textContent = '✅ Cadastro realizado com sucesso!'
+              mensagem.style.color = 'lightgreen'
+              setTimeout(() => (window.location.href = 'login.html'), 1500)
+            } else {
+              mensagem.textContent = data.error || '❌ Erro ao cadastrar.'
+              mensagem.style.color = 'red'
+            }
+          } catch (error) {
+            mensagem.textContent = '❌ Erro de conexão com o servidor.'
+            mensagem.style.color = 'red'
+          }
+        })
+    </script>
+  </body>
+</html>
