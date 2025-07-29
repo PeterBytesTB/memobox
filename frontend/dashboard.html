@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard Memobox</title>
+    <style>
+      :root {
+        --bg-color: #f9f9f9;
+        --text-color: #222;
+        --section-bg: #fff;
+        --button-bg: #e74c3c;
+        --button-hover-bg: #c0392b;
+      }
+      [data-theme='dark'] {
+        --bg-color: #121212;
+        --text-color: #eee;
+        --section-bg: #222;
+        --button-bg: #e67e22;
+        --button-hover-bg: #d35400;
+      }
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: Arial, sans-serif;
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 20px;
+        transition: background-color 0.3s, color 0.3s;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      header div.user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #foto-perfil {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        object-fit: cover;
+        background-color: #ddd;
+      }
+      button.logout {
+        padding: 6px 12px;
+        background-color: var(--button-bg);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button.logout:hover {
+        background-color: var(--button-hover-bg);
+      }
+      section {
+        background: var(--section-bg);
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        transition: background-color 0.3s;
+      }
+      ul#lista-arquivos {
+        list-style: none;
+        padding: 0;
+      }
+      ul#lista-arquivos li {
+        padding: 8px 0;
+        border-bottom: 1px solid #ddd;
+      }
+      ul#lista-arquivos li:last-child {
+        border-bottom: none;
+      }
+      button.excluir {
+        margin-left: 10px;
+        background-color: #e67e22;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 3px 8px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button.excluir:hover {
+        background-color: #d35400;
+      }
+      #mensagem,
+      #msgFotoPerfil {
+        margin-top: 10px;
+      }
+      #mensagem {
+        color: green;
+      }
+      #msgFotoPerfil {
+        color: green;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="user-info">
+        <img
+          id="foto-perfil"
+          src="/images/default-profile.png"
+          alt="Foto Perfil"
+          crossorigin="anonymous"
+        />
+        <h1>Bem-vindo, <span id="usuario-email">Usuário</span></h1>
+      </div>
+      <button class="logout" id="btnLogout">Sair</button>
+    </header>
+
+    <section>
+      <h2>Atualizar foto de perfil</h2>
+      <form id="uploadFotoPerfilForm" enctype="multipart/form-data">
+        <input type="file" name="foto" accept="image/*" required />
+        <button type="submit">Enviar Foto</button>
+      </form>
+      <div id="msgFotoPerfil"></div>
+    </section>
+
+    <section>
+      <h2>Envie seus arquivos</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" required />
+        <button type="submit">Enviar</button>
+      </form>
+      <div id="mensagem"></div>
+    </section>
+
+    <section>
+      <h2>Seus arquivos enviados</h2>
+      <ul id="lista-arquivos"></ul>
+    </section>
+
+    <script>
+      const token = localStorage.getItem('token')
+      if (!token) {
+        alert('Você precisa estar logado')
+        window.location.href = '/login.html'
+      }
+
+      // Decodificar token para pegar email do usuário (simples, sem validação)
+      function parseJwt(token) {
+        try {
+          return JSON.parse(atob(token.split('.')[1]))
+        } catch (e) {
+          return null
+        }
+      }
+      const usuario = parseJwt(token)
+      if (usuario && usuario.email) {
+        document.getElementById('usuario-email').textContent = usuario.email
+      } else {
+        document.getElementById('usuario-email').textContent = 'Usuário'
+      }
+
+      document.getElementById('btnLogout').addEventListener('click', () => {
+        localStorage.removeItem('token')
+        window.location.href = '/login.html'
+      })
+
+      // Função para carregar foto de perfil do usuário
+      async function carregarFotoPerfil() {
+        try {
+          const resposta = await fetch('/dados-usuario', {
+            headers: {
+              Authorization: 'Bearer ' + token,
+            },
+          })
+          if (!resposta.ok) throw new Error('Erro ao carregar dados do usuário')
+
+          const dados = await resposta.json()
+          if (dados.foto_perfil) {
+            document.getElementById('foto-perfil').src = dados.foto_perfil
+          }
+        } catch (error) {
+          console.error(error)
+        }
+      }
+
+      carregarFotoPerfil()
+
+      // Enviar nova foto de perfil
+      document
+        .getElementById('uploadFotoPerfilForm')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault()
+          const formData = new FormData(e.target)
+          const msgEl = document.getElementById('msgFotoPerfil')
+
+          try {
+            const resposta = await fetch('/upload-foto-perfil', {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + token,
+              },
+              body: formData,
+            })
+
+            const data = await resposta.json()
+            if (resposta.ok) {
+              msgEl.style.color = 'green'
+              msgEl.textContent = data.message
+              // Atualiza foto com timestamp para forçar atualização
+              document.getElementById('foto-perfil').src =
+                data.foto + '?t=' + Date.now()
+            } else {
+              msgEl.style.color = 'red'
+              msgEl.textContent = data.error || 'Erro ao enviar foto'
+            }
+          } catch (error) {
+            msgEl.style.color = 'red'
+            msgEl.textContent = 'Erro na requisição'
+            console.error(error)
+          }
+        })
+
+      // Upload do arquivo com token JWT
+      document
+        .getElementById('uploadForm')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault()
+          const formData = new FormData(e.target)
+          const msgEl = document.getElementById('mensagem')
+
+          try {
+            const resposta = await fetch('/upload', {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + token,
+              },
+              body: formData,
+            })
+
+            const data = await resposta.json()
+            if (resposta.ok) {
+              msgEl.style.color = 'green'
+              msgEl.textContent = data.message
+              carregarArquivos()
+            } else {
+              msgEl.style.color = 'red'
+              msgEl.textContent = data.error || 'Erro ao enviar arquivo'
+            }
+          } catch (error) {
+            msgEl.style.color = 'red'
+            msgEl.textContent = 'Erro ao enviar arquivo'
+            console.error(error)
+          }
+        })
+
+      // Função para carregar e mostrar os arquivos do usuário
+      async function carregarArquivos() {
+        try {
+          const resposta = await fetch('/meus-arquivos', {
+            headers: {
+              Authorization: 'Bearer ' + token,
+            },
+          })
+
+          if (!resposta.ok) {
+            alert('Erro ao buscar arquivos')
+            return
+          }
+
+          const arquivos = await resposta.json()
+          const lista = document.getElementById('lista-arquivos')
+          lista.innerHTML = ''
+
+          arquivos.forEach((arquivo) => {
+            const data = new Date(arquivo.data_upload).toLocaleString()
+            const li = document.createElement('li')
+            li.innerHTML = `
+              <strong>${arquivo.nome}</strong> (${arquivo.tipo}) - ${data} - 
+              <a href="/uploads/${arquivo.nome}" target="_blank">Baixar</a> - 
+              <button class="excluir" data-id="${arquivo.id}">Excluir</button>
+            `
+            lista.appendChild(li)
+          })
+
+          // Adiciona evento para os botões excluir
+          lista.querySelectorAll('button.excluir').forEach((botao) => {
+            botao.addEventListener('click', async (e) => {
+              const id = e.target.getAttribute('data-id')
+              if (!confirm('Confirma exclusão do arquivo?')) return
+
+              try {
+                const resposta = await fetch(`/arquivo/${id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: 'Bearer ' + token,
+                  },
+                })
+                const data = await resposta.json()
+                if (resposta.ok) {
+                  alert(data.message)
+                  carregarArquivos()
+                } else {
+                  alert(data.error || 'Erro ao apagar arquivo')
+                }
+              } catch (err) {
+                alert('Erro na exclusão')
+                console.error(err)
+              }
+            })
+          })
+        } catch (error) {
+          console.error('Erro ao carregar arquivos:', error)
+        }
+      }
+
+      carregarArquivos()
+    </script>
+  </body>
+</html>

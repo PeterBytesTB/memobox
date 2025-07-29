@@ -26,3 +26,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE arquivos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(255),
+  caminho TEXT,
+  tipo VARCHAR(50),
+  data_upload DATETIME DEFAULT CURRENT_TIMESTAMP,
+  usuario_id INT,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
