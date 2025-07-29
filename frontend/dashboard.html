@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dashboard Memobox</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <style>
       :root {
         --bg-color: #f9f9f9;
@@ -126,6 +132,20 @@
     </section>
 
     <section>
+      <h2>Foto de Perfil</h2>
+      <div>
+        <img
+          id="previewPerfil"
+          style="max-width: 100%; max-height: 300px; display: none"
+          alt="Preview da Foto de Perfil"
+        />
+      </div>
+      <input type="file" id="inputFotoPerfil" accept="image/*" />
+      <button id="btnCropUpload" disabled>Recortar e Enviar</button>
+      <div id="msgFotoPerfil"></div>
+    </section>
+
+    <section>
       <h2>Envie seus arquivos</h2>
       <form id="uploadForm" enctype="multipart/form-data">
         <input type="file" name="file" required />
@@ -178,7 +198,8 @@
 
           const dados = await resposta.json()
           if (dados.foto_perfil) {
-            document.getElementById('foto-perfil').src = dados.foto_perfil
+            document.getElementById('foto-perfil').src =
+              dados.foto_perfil + '?t=' + Date.now()
           }
         } catch (error) {
           console.error(error)
@@ -187,7 +208,7 @@
 
       carregarFotoPerfil()
 
-      // Enviar nova foto de perfil
+      // Enviar nova foto de perfil (upload direto, sem crop)
       document
         .getElementById('uploadFotoPerfilForm')
         .addEventListener('submit', async (e) => {
@@ -273,18 +294,23 @@
           const lista = document.getElementById('lista-arquivos')
           lista.innerHTML = ''
 
+          if (arquivos.length === 0) {
+            lista.innerHTML = '<li>Nenhum arquivo enviado ainda.</li>'
+            return
+          }
+
           arquivos.forEach((arquivo) => {
             const data = new Date(arquivo.data_upload).toLocaleString()
             const li = document.createElement('li')
             li.innerHTML = `
-              <strong>${arquivo.nome}</strong> (${arquivo.tipo}) - ${data} - 
-              <a href="/uploads/${arquivo.nome}" target="_blank">Baixar</a> - 
-              <button class="excluir" data-id="${arquivo.id}">Excluir</button>
-            `
+        <strong>${arquivo.nome}</strong> (${arquivo.tipo}) - ${data} - 
+        <a href="${arquivo.caminho}" target="_blank" rel="noopener noreferrer">Baixar</a> - 
+        <button class="excluir" data-id="${arquivo.id}">Excluir</button>
+      `
             lista.appendChild(li)
           })
 
-          // Adiciona evento para os botões excluir
+          // Eventos para excluir arquivos
           lista.querySelectorAll('button.excluir').forEach((botao) => {
             botao.addEventListener('click', async (e) => {
               const id = e.target.getAttribute('data-id')
@@ -316,6 +342,84 @@
       }
 
       carregarArquivos()
+
+      // --- CROP E UPLOAD FOTO DE PERFIL ---
+
+      let cropper = null
+      const inputFotoPerfil = document.getElementById('inputFotoPerfil')
+      const previewPerfil = document.getElementById('previewPerfil')
+      const btnCropUpload = document.getElementById('btnCropUpload')
+      const msgFotoPerfil = document.getElementById('msgFotoPerfil')
+
+      inputFotoPerfil.addEventListener('change', (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        // Mostrar preview e criar cropper
+        const url = URL.createObjectURL(file)
+        previewPerfil.src = url
+        previewPerfil.style.display = 'block'
+
+        // Destrói cropper antigo se existir
+        if (cropper) cropper.destroy()
+
+        cropper = new Cropper(previewPerfil, {
+          aspectRatio: 1, // foto quadrada
+          viewMode: 1,
+          autoCropArea: 1,
+        })
+
+        btnCropUpload.disabled = false
+      })
+
+      btnCropUpload.addEventListener('click', async () => {
+        if (!cropper) return
+        msgFotoPerfil.textContent = ''
+
+        // Obter a imagem recortada como blob
+        cropper.getCroppedCanvas().toBlob(async (blob) => {
+          if (!blob) {
+            msgFotoPerfil.style.color = 'red'
+            msgFotoPerfil.textContent = 'Erro ao gerar a imagem recortada'
+            return
+          }
+
+          const formData = new FormData()
+          formData.append('foto', blob, 'perfil.png')
+
+          try {
+            const resposta = await fetch('/upload-foto-perfil', {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + token,
+              },
+              body: formData,
+            })
+
+            const data = await resposta.json()
+            if (resposta.ok) {
+              msgFotoPerfil.style.color = 'green'
+              msgFotoPerfil.textContent = data.message
+              // Atualiza foto com timestamp para forçar atualização
+              document.getElementById('foto-perfil').src =
+                data.foto + '?t=' + Date.now()
+              // Limpa preview e input
+              cropper.destroy()
+              cropper = null
+              previewPerfil.style.display = 'none'
+              inputFotoPerfil.value = ''
+              btnCropUpload.disabled = true
+            } else {
+              msgFotoPerfil.style.color = 'red'
+              msgFotoPerfil.textContent = data.error || 'Erro ao enviar foto'
+            }
+          } catch (error) {
+            msgFotoPerfil.style.color = 'red'
+            msgFotoPerfil.textContent = 'Erro na requisição'
+            console.error(error)
+          }
+        }, 'image/png')
+      })
     </script>
   </body>
 </html>
