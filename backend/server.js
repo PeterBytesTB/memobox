@@ -9,6 +9,8 @@ import dotenv from 'dotenv'
 import mysql from 'mysql2'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import http from 'http'
+import { Server } from 'socket.io'
 
 dotenv.config()
 
@@ -18,7 +20,7 @@ const __dirname = dirname(__filename)
 const app = express()
 app.use(express.json())
 app.use(cors())
-const PORT = 3000
+const PORT = 8080
 
 // Middleware de log
 app.use((req, res, next) => {
@@ -26,6 +28,15 @@ app.use((req, res, next) => {
   console.log('Headers:', req.headers)
   console.log('Body:', req.body)
   next()
+})
+
+const server = http.createServer(app)
+
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
 })
 
 // Arquivos estáticos
@@ -92,6 +103,19 @@ const uploadPerfil = multer({
       cb(new Error('Somente imagens JPEG ou PNG são permitidas'))
     }
   },
+})
+
+io.on('connection', (socket) => {
+  console.log('Usuário conectado:', socket.id)
+
+  socket.on('sendMessage', (data) => {
+    console.log('Mensagem recebida:', data)
+    io.emit('receiveMessage', data)
+  })
+
+  socket.on('disconnect', () => {
+    console.log('Usuário desconectado:', socket.id)
+  })
 })
 
 // Middleware de autenticação JWT
@@ -210,7 +234,14 @@ app.post('/login', (req, res) => {
       { expiresIn: '2h' },
     )
 
-    res.json({ message: 'Login bem-sucedido!', token })
+    // Remove a senha antes de enviar o usuário
+    const { senha: _, ...userWithoutPassword } = user
+
+    res.json({
+      message: 'Login bem-sucedido!',
+      token,
+      user: userWithoutPassword,
+    })
   })
 })
 
