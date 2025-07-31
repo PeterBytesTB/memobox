@@ -7,7 +7,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Ao montar, tenta recuperar o token e dados do usuário no localStorage
     const token = localStorage.getItem('token')
     if (token) {
       fetch('http://localhost:8080/dados-usuario', {
@@ -30,9 +29,36 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = (token, userData) => {
-    localStorage.setItem('token', token)
-    setUser(userData)
+  const login = async (email, senha) => {
+    try {
+      const res = await fetch('http://localhost:8080/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha }),
+      })
+
+      if (!res.ok) {
+        // Lê mensagem de erro do backend (se tiver)
+        const errorData = await res.json()
+        return {
+          success: false,
+          message: errorData.message || 'Falha no login',
+        }
+      }
+
+      const data = await res.json()
+
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+        setUser(data.user)
+        return { success: true }
+      }
+
+      return { success: false, message: 'Resposta inesperada do servidor' }
+    } catch (error) {
+      console.error('Erro no login:', error)
+      return { success: false, message: 'Erro ao conectar com o servidor' }
+    }
   }
 
   const logout = () => {

@@ -18,7 +18,6 @@ export default function LoginPage() {
     if (!result.success) {
       setError(result.message)
     } else {
-      // redireciona após login bem sucedido
       window.location.href = '/dashboard'
     }
 

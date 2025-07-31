@@ -6,7 +6,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import dotenv from 'dotenv'
-import mysql from 'mysql2'
+import mysql from 'mysql2/promise'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import http from 'http'
@@ -17,10 +17,38 @@ dotenv.config()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173']
+
 const app = express()
 app.use(express.json())
-app.use(cors())
-const PORT = 8080
+
+// Configura CORS no Express
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.indexOf(origin) === -1) {
+        return callback(new Error('CORS não permitido'), false)
+      }
+      return callback(null, true)
+    },
+    methods: ['GET', 'POST'],
+  }),
+)
+
+// Cria pool de conexões para MySQL com mysql2/promise
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD?.replace(/"/g, ''),
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+})
+
+const PORT = process.env.PORT || 8080
 
 // Middleware de log
 app.use((req, res, next) => {
@@ -32,34 +60,24 @@ app.use((req, res, next) => {
 
 const server = http.createServer(app)
 
+// Configura Socket.IO com CORS liberado para os mesmos origins
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
   },
+})
+
+io.on('connection', (socket) => {
+  console.log('Cliente conectado:', socket.id)
+  socket.on('disconnect', () => {
+    console.log('Cliente desconectado:', socket.id)
+  })
 })
 
 // Arquivos estáticos
 app.use(express.static(path.join(__dirname, '../frontend')))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
-
-// Conexão com MySQL
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD?.replace(/"/g, ''),
-  database: process.env.DB_NAME,
-})
-
-db.connect((err) => {
-  if (err) {
-    console.error('❌ Erro ao conectar no MySQL:', err)
-    process.exit(1)
-  } else {
-    console.log('✅ Conectado ao MySQL')
-  }
-})
 
 // Pasta para salvar fotos de perfil
 const perfilDir = path.join(__dirname, 'uploads', 'perfis')
@@ -106,15 +124,16 @@ const uploadPerfil = multer({
 })
 
 io.on('connection', (socket) => {
-  console.log('Usuário conectado:', socket.id)
+  console.log('🟢 Novo cliente conectado:', socket.id)
 
-  socket.on('sendMessage', (data) => {
-    console.log('Mensagem recebida:', data)
-    io.emit('receiveMessage', data)
+  socket.on('mensagem', (data) => {
+    console.log('📨 Mensagem recebida:', data)
+    // Reenvia para todos os outros clientes
+    socket.broadcast.emit('mensagem', data)
   })
 
   socket.on('disconnect', () => {
-    console.log('Usuário desconectado:', socket.id)
+    console.log('🔴 Cliente desconectado:', socket.id)
   })
 })
 
@@ -210,60 +229,66 @@ app.post('/register', async (req, res) => {
   }
 })
 
-// Login
-app.post('/login', (req, res) => {
-  const { email, senha } = req.body
-  if (!email || !senha)
-    return res.status(400).json({ error: 'Dados obrigatórios' })
-
-  const query = 'SELECT * FROM usuarios WHERE email = ?'
-  db.query(query, [email], async (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(401).json({ error: 'Usuário não encontrado' })
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body
+    if (!email || !senha) {
+      return res.status(400).json({ message: 'Email e senha são obrigatórios' })
     }
 
-    const user = results[0]
-    const isMatch = await bcrypt.compare(senha, user.senha)
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Senha incorreta' })
+    const [rows] = await pool.query('SELECT * FROM usuarios WHERE email = ?', [
+      email,
+    ])
+
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'Credenciais inválidas' })
+    }
+
+    const user = rows[0]
+    const senhaValida = await bcrypt.compare(senha, user.senha) // ou user.senha_hash dependendo da coluna
+
+    if (!senhaValida) {
+      return res.status(401).json({ message: 'Credenciais inválidas' })
     }
 
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: '2h' },
+      {
+        expiresIn: '1h',
+      },
     )
 
-    // Remove a senha antes de enviar o usuário
-    const { senha: _, ...userWithoutPassword } = user
-
     res.json({
-      message: 'Login bem-sucedido!',
       token,
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        nome: user.nome,
+        email: user.email,
+      },
     })
-  })
+  } catch (error) {
+    console.error('Erro na rota /api/login:', error.stack || error)
+    res.status(500).json({ message: 'Erro interno no servidor' })
+  }
 })
 
 // Listar arquivos do usuário
-app.get('/meus-arquivos', authenticateToken, (req, res) => {
-  const usuarioId = req.user.id
-
-  const query = `
-    SELECT id, nome, caminho, tipo, data_upload 
-    FROM arquivos 
-    WHERE usuario_id = ? 
-    ORDER BY data_upload DESC
-  `
-
-  db.query(query, [usuarioId], (err, results) => {
-    if (err) {
-      console.error('Erro ao buscar arquivos:', err)
-      return res.status(500).json({ error: 'Erro ao buscar arquivos.' })
-    }
-
-    res.status(200).json(results)
-  })
+app.get('/meus-arquivos', authenticateToken, async (req, res) => {
+  try {
+    const usuarioId = req.user.id
+    const query = `
+      SELECT id, nome, caminho, tipo, data_upload 
+      FROM arquivos 
+      WHERE usuario_id = ? 
+      ORDER BY data_upload DESC
+    `
+    const [results] = await pool.query(query, [usuarioId])
+    res.json(results)
+  } catch (err) {
+    console.error('Erro ao buscar arquivos:', err)
+    res.status(500).json({ error: 'Erro ao buscar arquivos.' })
+  }
 })
 
 // Excluir arquivo pelo ID
@@ -307,23 +332,32 @@ app.delete('/arquivo/:id', authenticateToken, (req, res) => {
   })
 })
 
-app.get('/dados-usuario', authenticateToken, (req, res) => {
-  const usuarioId = req.user.id
-  const query = 'SELECT email, foto_perfil FROM usuarios WHERE id = ? LIMIT 1'
-
-  db.query(query, [usuarioId], (err, results) => {
-    if (err) {
-      console.error('Erro ao buscar dados do usuário:', err)
-      return res.status(500).json({ error: 'Erro ao buscar dados' })
+app.get('/dados-usuario', authenticateToken, async (req, res) => {
+  try {
+    const usuarioId = req.user?.id
+    if (!usuarioId) {
+      return res.status(400).json({ error: 'Usuário inválido' })
     }
+
+    console.log('Buscando dados do usuário com id:', usuarioId)
+
+    const [results] = await pool.query(
+      'SELECT email, foto_perfil FROM usuarios WHERE id = ? LIMIT 1',
+      [usuarioId],
+    )
+
     if (results.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' })
     }
+
     res.json(results[0])
-  })
+  } catch (err) {
+    console.error('Erro ao buscar dados do usuário:', err)
+    res.status(500).json({ error: 'Erro ao buscar dados' })
+  }
 })
 
 // Inicialização do servidor
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta: ${PORT}`)
+server.listen(process.env.PORT || 8080, () => {
+  console.log(`Servidor rodando na porta ${process.env.PORT || 8080}`)
 })
