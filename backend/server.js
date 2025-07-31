@@ -11,6 +11,7 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import http from 'http'
 import { Server } from 'socket.io'
+import uploadRoutes from './uploadRoutes.js'
 
 dotenv.config()
 
@@ -21,6 +22,7 @@ const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173']
 
 const app = express()
 app.use(express.json())
+app.use(uploadRoutes)
 
 // Configura CORS no Express
 app.use(
