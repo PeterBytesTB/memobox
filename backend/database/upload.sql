@@ -1,25 +1,14 @@
 CREATE DATABASE IF NOT EXISTS memobox;
 USE memobox;
 
--- Tabela de usuários (em inglês para padronizar)
+-- Tabela de usuários
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  username VARCHAR(50) UNIQUE NOT NULL,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   profile_picture_url VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabela de uploads (arquivos enviados pelos usuários)
-CREATE TABLE IF NOT EXISTS uploads (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  filename VARCHAR(255),
-  originalname VARCHAR(255),
-  mimetype VARCHAR(100),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Tabela de sessões (tokens de autenticação)
@@ -28,8 +17,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id INT NOT NULL,
   token VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Índice para acelerar buscas por token na tabela sessions
+CREATE INDEX idx_token ON sessions(token);
 
 -- Tabela alternativa para arquivos (opcional)
 CREATE TABLE IF NOT EXISTS arquivos (
@@ -38,8 +31,8 @@ CREATE TABLE IF NOT EXISTS arquivos (
   caminho TEXT,
   tipo VARCHAR(50),
   data_upload DATETIME DEFAULT CURRENT_TIMESTAMP,
-  usuario_id INT,
-  FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
+  user_id INT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Tabela de mensagens (texto e arquivos criptografados)
@@ -64,4 +57,14 @@ CREATE TABLE IF NOT EXISTS friendships (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (friend_id) REFERENCES users(id)
+);
+
+-- Tabela para logs de acessos (opcional, para segurança e auditoria)
+CREATE TABLE IF NOT EXISTS access_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  access_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext'
 export default function LoginPage() {
   const { login } = useContext(AuthContext)
   const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -13,7 +13,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const result = await login(email, senha)
+    const result = await login(email, password)
 
     if (!result.success) {
       setError(result.message)
@@ -43,8 +43,8 @@ export default function LoginPage() {
           Senha:
           <input
             type="password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
           />

@@ -31,18 +31,17 @@ export function AuthProvider({ children }) {
 
   const login = async (email, senha) => {
     try {
-      const res = await fetch('http://localhost:8080/api/login', {
+      const res = await fetch('http://localhost:8080/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha }),
+        body: JSON.stringify({ email, password: senha }),
       })
 
       if (!res.ok) {
-        // Lê mensagem de erro do backend (se tiver)
         const errorData = await res.json()
         return {
           success: false,
-          message: errorData.message || 'Falha no login',
+          message: errorData.error || 'Falha no login', // seu backend usa "error"
         }
       }
 
@@ -50,7 +49,8 @@ export function AuthProvider({ children }) {
 
       if (data.token) {
         localStorage.setItem('token', data.token)
-        setUser(data.user)
+        // Só seta o user após buscar dados reais (com o token)
+        setUser(null)
         return { success: true }
       }
 

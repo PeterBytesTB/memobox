@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 export default function RegisterPage() {
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [confirmaSenha, setConfirmaSenha] = useState('')
@@ -24,13 +25,14 @@ export default function RegisterPage() {
       const response = await fetch('http://localhost:8080/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha }),
+        body: JSON.stringify({ username, email, password: senha }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
         setSuccess('Cadastro realizado com sucesso! Você já pode fazer login.')
+        setUsername('')
         setEmail('')
         setSenha('')
         setConfirmaSenha('')
@@ -49,13 +51,24 @@ export default function RegisterPage() {
       <h2>Registrar</h2>
       <form onSubmit={handleSubmit}>
         <label>
+          Nome de usuário:
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoComplete="username"
+          />
+        </label>
+        <br />
+        <label>
           Email:
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            autoComplete="username"
+            autoComplete="email"
           />
         </label>
         <br />
