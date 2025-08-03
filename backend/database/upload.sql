@@ -4,12 +4,18 @@ USE memobox;
 -- Tabela de usuários
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  profile_picture_url VARCHAR(255),
+  profile_image VARCHAR(255), 
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX idx_email ON users(email);
+CREATE UNIQUE INDEX idx_username ON users(username);
+
+
 
 -- Tabela de sessões (tokens de autenticação)
 CREATE TABLE IF NOT EXISTS sessions (

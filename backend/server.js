@@ -36,7 +36,7 @@ app.use(
       }
       return callback(null, true)
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   }),
 )
 
@@ -68,7 +68,7 @@ const server = http.createServer(app)
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 })
 
@@ -92,15 +92,54 @@ if (!fs.existsSync(perfilDir)) {
 // Multer padrão para arquivos gerais
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/')
+    cb(null, uploadDir)
   },
   filename: (req, file, cb) => {
+    // Sanitiza nome original
     const nomeOriginal = path.basename(file.originalname)
     const nomeSanitizado = nomeOriginal.replace(/[^a-zA-Z0-9.\-_]/g, '')
+    // Gera nome único com timestamp
     const nomeUnico = Date.now() + '-' + nomeSanitizado
     cb(null, nomeUnico)
   },
 })
+
+const uploadVideo = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, videoDir),
+    filename: (req, file, cb) => {
+      const nomeUnico =
+        Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      cb(null, nomeUnico)
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (/mp4|mov|avi/.test(path.extname(file.originalname).toLowerCase())) {
+      cb(null, true)
+    } else {
+      cb(new Error('Somente vídeos são permitidos'))
+    }
+  },
+})
+
+const uploadAudio = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, audioDir),
+    filename: (req, file, cb) => {
+      const nomeUnico =
+        Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      cb(null, nomeUnico)
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (/mp3|wav|ogg/.test(path.extname(file.originalname).toLowerCase())) {
+      cb(null, true)
+    } else {
+      cb(new Error('Somente áudios são permitidos'))
+    }
+  },
+})
+
 const upload = multer({ storage })
 
 // Multer para upload de foto de perfil, com filtro para imagens JPEG/PNG
@@ -195,11 +234,10 @@ app.post(
   },
 )
 
-// Upload protegido de foto de perfil
 app.post(
-  '/upload-foto-perfil',
+  '/profile/image',
   authenticateToken,
-  uploadPerfil.single('foto'),
+  uploadPerfil.single('profile_image'),
   async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'Nenhuma foto enviada' })
@@ -208,13 +246,13 @@ app.post(
     const usuarioId = req.user.id
     const caminhoRelativo = `/uploads/perfis/${req.file.filename}`
 
-    const query = 'UPDATE users SET foto_perfil = ? WHERE id = ?'
+    const query = 'UPDATE users SET profile_image = ? WHERE id = ?'
 
     try {
       await pool.query(query, [caminhoRelativo, usuarioId])
       res.json({
         message: 'Foto de perfil enviada com sucesso',
-        foto: caminhoRelativo,
+        imageUrl: caminhoRelativo,
       })
     } catch (err) {
       console.error('Erro ao salvar caminho da foto:', err)
@@ -225,39 +263,41 @@ app.post(
 
 // Registro de usuário
 app.post('/register', async (req, res) => {
-  const { username, email, password } = req.body
+  const { name, username, email, password } = req.body
 
-  // Verifica se todos os campos obrigatórios foram preenchidos
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: 'Preencha todos os campos.' })
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'E-mail inválido' })
   }
 
-  try {
-    // Gera o hash da senha com bcrypt
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    const query = `
-      INSERT INTO users (email, username, password_hash)
-      VALUES (?, ?, ?)
-    `
-
-    // Executa o INSERT no banco de dados
-    await pool.query(query, [email, username, hashedPassword])
-
-    return res.status(201).json({ message: 'Usuário cadastrado com sucesso!' })
-  } catch (err) {
-    console.error('Erro ao inserir no banco de dados:', err)
-
-    // Trata erro de duplicidade (email ou username já existem)
-    if (err.code === 'ER_DUP_ENTRY') {
-      return res
-        .status(409)
-        .json({ error: 'Email ou nome de usuário já está em uso.' })
-    }
-
-    // Erro genérico
-    return res.status(500).json({ error: 'Erro interno no servidor.' })
+  // Verifica se email já existe
+  const [existingEmail] = await pool.query(
+    'SELECT id FROM users WHERE email = ?',
+    [email],
+  )
+  if (existingEmail.length > 0) {
+    return res.status(409).json({ error: 'E-mail já cadastrado' })
   }
+
+  // Verifica se username já existe
+  const [existingUsername] = await pool.query(
+    'SELECT id FROM users WHERE username = ?',
+    [username],
+  )
+  if (existingUsername.length > 0) {
+    return res.status(409).json({ error: 'Usuário já cadastrado' })
+  }
+
+  // Criptografa a senha
+  const hashedPassword = await bcrypt.hash(password, 10)
+
+  // Insere o usuário
+  await pool.query(
+    'INSERT INTO users (name, username, email, password_hash) VALUES (?, ?, ?, ?)',
+    [name, username, email, hashedPassword],
+  )
+
+  res.status(201).json({ message: 'Usuário registrado com sucesso' })
 })
 
 app.post('/login', async (req, res) => {
@@ -325,6 +365,110 @@ app.get('/meus-arquivos', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Erro ao buscar arquivos.' })
   }
 })
+
+app.put('/profile', authenticateToken, async (req, res) => {
+  const { username, email, profile_picture_url } = req.body
+  const userId = req.user.id
+
+  try {
+    // Verifica se o novo username ou email já existem em outros usuários
+    const [users] = await pool.query(
+      'SELECT * FROM users WHERE (username = ? OR email = ?) AND id != ?',
+      [username, email, userId],
+    )
+
+    if (users.length > 0) {
+      return res
+        .status(400)
+        .json({ error: 'Nome de usuário ou email já em uso.' })
+    }
+
+    // Atualiza o usuário
+    await pool.query(
+      'UPDATE users SET username = ?, email = ?, profile_image = ? WHERE id = ?',
+      [username, email, profile_picture_url, userId],
+    )
+
+    res.json({ message: 'Perfil atualizado com sucesso.' })
+  } catch (err) {
+    console.error('Erro ao atualizar perfil:', err)
+    res.status(500).json({ error: 'Erro interno do servidor.' })
+  }
+})
+
+// Rota protegida para obter perfil do usuário logado
+app.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const [rows] = await pool.query(
+      'SELECT id, username, email, name, profile_image, created_at FROM users WHERE id = ?',
+      [userId],
+    )
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' })
+    }
+
+    res.json(rows[0])
+  } catch (err) {
+    console.error('Erro ao buscar perfil:', err)
+    res.status(500).json({ error: 'Erro interno no servidor' })
+  }
+})
+
+// Upload de vídeo
+app.post(
+  '/upload/video',
+  authenticateToken,
+  uploadVideo.single('video'),
+  async (req, res) => {
+    if (!req.file)
+      return res.status(400).json({ error: 'Nenhum vídeo enviado' })
+
+    const { filename, mimetype, path: filepath } = req.file
+    const usuarioId = req.user.id
+
+    try {
+      const query = `
+        INSERT INTO arquivos (nome, caminho, tipo, user_id)
+        VALUES (?, ?, ?, ?)
+      `
+      await pool.query(query, [filename, filepath, mimetype, usuarioId])
+
+      res.json({ message: 'Vídeo enviado com sucesso!', file: req.file })
+    } catch (err) {
+      console.error('Erro ao salvar vídeo:', err)
+      res.status(500).json({ error: 'Erro ao salvar vídeo no banco' })
+    }
+  },
+)
+
+// Upload de áudio
+app.post(
+  '/upload/audio',
+  authenticateToken,
+  uploadAudio.single('audio'),
+  async (req, res) => {
+    if (!req.file)
+      return res.status(400).json({ error: 'Nenhum áudio enviado' })
+
+    const { filename, mimetype, path: filepath } = req.file
+    const usuarioId = req.user.id
+
+    try {
+      const query = `
+        INSERT INTO arquivos (nome, caminho, tipo, user_id)
+        VALUES (?, ?, ?, ?)
+      `
+      await pool.query(query, [filename, filepath, mimetype, usuarioId])
+
+      res.json({ message: 'Áudio enviado com sucesso!', file: req.file })
+    } catch (err) {
+      console.error('Erro ao salvar áudio:', err)
+      res.status(500).json({ error: 'Erro ao salvar áudio no banco' })
+    }
+  },
+)
 
 // Excluir arquivo pelo ID
 app.delete('/arquivo/:id', authenticateToken, (req, res) => {
