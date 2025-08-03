@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
-import PerfilPage from './pages/PerfilPage'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
 import PrivateRoute from './components/PrivateRoute'
@@ -27,19 +26,19 @@ function App() {
         />
 
         <Route
-          path="/perfil"
+          path="/chat"
           element={
             <PrivateRoute>
-              <PerfilPage />
+              <ChatPage />
             </PrivateRoute>
           }
         />
 
         <Route
-          path="/chat"
+          path="/profile"
           element={
             <PrivateRoute>
-              <ChatPage />
+              <Profile />
             </PrivateRoute>
           }
         />

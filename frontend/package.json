@@ -6,6 +6,7 @@
     "crypto-js": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.5.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.7.1",
     "react-scripts": "^5.0.1",
@@ -28,5 +29,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/react-easy-crop": "^1.16.0"
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 export default function RegisterPage() {
+  const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -22,16 +23,22 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('http://localhost:8080/register', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password: senha }),
+        body: JSON.stringify({
+          name,
+          username,
+          email,
+          password: senha,
+        }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
         setSuccess('Cadastro realizado com sucesso! Você já pode fazer login.')
+        setName('')
         setUsername('')
         setEmail('')
         setSenha('')
@@ -50,6 +57,17 @@ export default function RegisterPage() {
     <div style={{ maxWidth: 400, margin: 'auto', padding: 20 }}>
       <h2>Registrar</h2>
       <form onSubmit={handleSubmit}>
+        <label>
+          Nome completo:
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoComplete="name"
+          />
+        </label>
+        <br />
         <label>
           Nome de usuário:
           <input
