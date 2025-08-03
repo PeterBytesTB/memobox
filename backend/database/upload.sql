@@ -46,13 +46,14 @@ CREATE TABLE IF NOT EXISTS messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   sender_id INT NOT NULL,
   receiver_id INT NOT NULL,
-  content TEXT,          -- texto criptografado
-  file_url VARCHAR(255), -- link para arquivo criptografado (opcional)
-  mime_type VARCHAR(100),
-  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  content TEXT,
+  media_type ENUM('image', 'audio', 'video', 'none') DEFAULT 'none',
+  media_url VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (sender_id) REFERENCES users(id),
   FOREIGN KEY (receiver_id) REFERENCES users(id)
 );
+
 
 -- Tabela de amizades / contatos
 CREATE TABLE IF NOT EXISTS friendships (

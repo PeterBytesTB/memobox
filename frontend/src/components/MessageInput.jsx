@@ -1,51 +1,76 @@
-import { useState, useRef, useEffect } from 'react'
-import { FiSend, FiMic } from 'react-icons/fi'
-import '../Chat.css'
+import { useState } from 'react'
 
 export default function MessageInput({ onSendMessage }) {
-  const [message, setMessage] = useState('')
-  const textareaRef = useRef(null)
+  const [text, setText] = useState('')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
-    }
-  }, [message])
-
-  const handleSend = () => {
-    const trimmed = message.trim()
-    if (!trimmed) return
-    onSendMessage(trimmed)
-    setMessage('')
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0]
+    setFile(selectedFile)
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!text && !file) return
+
+    if (file) {
+      setUploading(true)
+      // Enviar arquivo para backend via fetch + FormData
+      const formData = new FormData()
+      formData.append('media', file)
+      formData.append('sender_id', '1') // ajuste conforme seu usuário logado
+      formData.append('receiver_id', '2') // ajuste para o destinatário real
+      formData.append('content', text)
+
+      try {
+        const res = await fetch('http://localhost:8080/messages', {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await res.json()
+        if (data.success) {
+          // Passa para o pai a mensagem com URL e tipo da mídia
+          onSendMessage({
+            text,
+            media_url: `/uploads/midias/${file.name}`, // ideal pegar da resposta do backend (ajuste)
+            media_type: file.type.split('/')[0],
+          })
+          setText('')
+          setFile(null)
+        } else {
+          alert('Falha ao enviar a mensagem')
+        }
+      } catch {
+        alert('Erro ao conectar com o servidor')
+      }
+      setUploading(false)
+    } else {
+      // Mensagem só com texto
+      onSendMessage({ text })
+      setText('')
     }
   }
 
   return (
-    <div className="message-input">
-      <textarea
-        ref={textareaRef}
-        placeholder="Digite uma mensagem"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={handleKeyDown}
-        rows={1}
-        className="message-textarea"
+    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+      <input
+        type="text"
+        placeholder="Digite sua mensagem"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={uploading}
+        style={{ flex: 1 }}
       />
-      <button
-        onClick={handleSend}
-        disabled={message.trim() === ''}
-        className="message-send-button"
-        aria-label="Enviar mensagem"
-      >
-        {message.trim() === '' ? <FiMic size={20} /> : <FiSend size={20} />}
+      <input
+        type="file"
+        accept="image/*,audio/*,video/*"
+        onChange={handleFileChange}
+        disabled={uploading}
+      />
+      <button type="submit" disabled={uploading}>
+        {uploading ? 'Enviando...' : 'Enviar'}
       </button>
-    </div>
+    </form>
   )
 }

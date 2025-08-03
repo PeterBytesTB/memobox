@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from 'react'
+import { createContext, useState, useEffect, useContext } from 'react'
 
 export const AuthContext = createContext()
 
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
         const errorData = await res.json()
         return {
           success: false,
-          message: errorData.error || 'Falha no login', // seu backend usa "error"
+          message: errorData.error || 'Falha no login',
         }
       }
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
 
       if (data.token) {
         localStorage.setItem('token', data.token)
-        // Só seta o user após buscar dados reais (com o token)
+        // Adia o setUser pra depois que os dados forem buscados
         setUser(null)
         return { success: true }
       }
@@ -72,3 +72,6 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
+
+// Hook personalizado pra usar o contexto
+export const useAuth = () => useContext(AuthContext)

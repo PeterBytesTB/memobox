@@ -92,13 +92,11 @@ if (!fs.existsSync(perfilDir)) {
 // Multer padrão para arquivos gerais
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir)
+    cb(null, midiaDir)
   },
   filename: (req, file, cb) => {
-    // Sanitiza nome original
     const nomeOriginal = path.basename(file.originalname)
     const nomeSanitizado = nomeOriginal.replace(/[^a-zA-Z0-9.\-_]/g, '')
-    // Gera nome único com timestamp
     const nomeUnico = Date.now() + '-' + nomeSanitizado
     cb(null, nomeUnico)
   },
@@ -141,6 +139,12 @@ const uploadAudio = multer({
 })
 
 const upload = multer({ storage })
+
+// Pasta para mídias de mensagens (imagens, áudios, vídeos)
+const midiaDir = path.join(__dirname, 'uploads', 'midias')
+if (!fs.existsSync(midiaDir)) {
+  fs.mkdirSync(midiaDir, { recursive: true })
+}
 
 // Multer para upload de foto de perfil, com filtro para imagens JPEG/PNG
 const storagePerfil = multer.diskStorage({
@@ -416,6 +420,27 @@ app.get('/profile', authenticateToken, async (req, res) => {
   }
 })
 
+app.post('/messages', upload.single('media'), async (req, res) => {
+  const { sender_id, receiver_id, content } = req.body
+
+  const file = req.file
+  const media_url = file ? `/uploads/midias/${file.filename}` : null
+  const media_type = file ? file.mimetype.split('/')[0] : 'none'
+
+  try {
+    await pool.query(
+      `INSERT INTO messages (sender_id, receiver_id, content, media_type, media_url)
+       VALUES (?, ?, ?, ?, ?)`,
+      [sender_id, receiver_id, content, media_type, media_url],
+    )
+
+    res.status(200).json({ success: true, message: 'Mensagem enviada!' })
+  } catch (error) {
+    console.error('Erro ao salvar mensagem:', error)
+    res.status(500).json({ success: false, error: 'Erro interno no servidor' })
+  }
+})
+
 // Upload de vídeo
 app.post(
   '/upload/video',
@@ -477,7 +502,7 @@ app.delete('/arquivo/:id', authenticateToken, (req, res) => {
 
   // Verifica se o arquivo pertence ao usuário
   const selectQuery =
-    'SELECT caminho FROM arquivos WHERE id = ? AND usuario_id = ?'
+    'SELECT caminho FROM arquivos WHERE id = ? AND user_id = ?'
   db.query(selectQuery, [arquivoId, usuarioId], (err, results) => {
     if (err) {
       console.error('Erro ao consultar arquivo:', err)
@@ -499,7 +524,7 @@ app.delete('/arquivo/:id', authenticateToken, (req, res) => {
       }
 
       // Remove registro do banco
-      const deleteQuery = 'DELETE FROM arquivos WHERE id = ? AND usuario_id = ?'
+      const deleteQuery = 'DELETE FROM arquivos WHERE id = ? AND user_id = ?'
       db.query(deleteQuery, [arquivoId, usuarioId], (delErr) => {
         if (delErr) {
           console.error('Erro ao deletar arquivo do banco:', delErr)
@@ -521,7 +546,7 @@ app.get('/dados-usuario', authenticateToken, async (req, res) => {
     console.log('Buscando dados do usuário com id:', usuarioId)
 
     const [results] = await pool.query(
-      'SELECT email, profile_picture_url FROM users WHERE id = ? LIMIT 1',
+      'SELECT email, profile_image FROM users WHERE id = ? LIMIT 1',
       [usuarioId],
     )
 

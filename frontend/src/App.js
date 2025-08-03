@@ -5,45 +5,51 @@ import DashboardPage from './pages/DashboardPage'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
 import PrivateRoute from './components/PrivateRoute'
+import Profile from './components/Profile'
+import { AuthProvider } from './context/AuthContext'
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/* Rotas públicas */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+    <AuthProvider>
+      {' '}
+      {/* <- Envolve o Router no contexto */}
+      <Router>
+        <Routes>
+          {/* Rotas públicas */}
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
-        {/* Rotas privadas protegidas */}
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <DashboardPage />
-            </PrivateRoute>
-          }
-        />
+          {/* Rotas privadas protegidas */}
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/chat"
-          element={
-            <PrivateRoute>
-              <ChatPage />
-            </PrivateRoute>
-          }
-        />
+          <Route
+            path="/chat"
+            element={
+              <PrivateRoute>
+                <ChatPage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/profile"
-          element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
-          }
-        />
-      </Routes>
-    </Router>
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+        </Routes>
+      </Router>
+    </AuthProvider>
   )
 }
 
