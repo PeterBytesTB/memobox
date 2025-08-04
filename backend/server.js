@@ -12,25 +12,22 @@ import jwt from 'jsonwebtoken'
 import http from 'http'
 import { Server } from 'socket.io'
 import uploadRoutes from './uploadRoutes.js'
-import authRoutes from './auth/auth.routes.js'
 
 dotenv.config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173']
+// CORS: Defina aqui os domínios do frontend que vão acessar a API
+const allowedOrigins = ['http://localhost:8080', 'http://localhost:5173']
 
 const app = express()
-app.use(express.json())
-app.use(uploadRoutes)
-app.use('/api', authRoutes)
 
-// Configura CORS no Express
+// 🟢 Configura CORS antes das rotas
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true)
+      if (!origin) return callback(null, true) // Postman, curl, etc
       if (allowedOrigins.indexOf(origin) === -1) {
         return callback(new Error('CORS não permitido'), false)
       }
@@ -40,79 +37,44 @@ app.use(
   }),
 )
 
-// Cria pool de conexões para MySQL com mysql2/promise
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD?.replace(/"/g, ''),
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-})
+app.use(express.json()) // Para aceitar JSON no body
 
-const PORT = process.env.PORT || 8080
+// 🔵 Diretórios para uploads
+const midiaDir = path.join(__dirname, 'uploads', 'midias')
+if (!fs.existsSync(midiaDir)) fs.mkdirSync(midiaDir, { recursive: true })
 
-// Middleware de log
-app.use((req, res, next) => {
-  console.log(`🟡 ${req.method} ${req.url}`)
-  console.log('Headers:', req.headers)
-  console.log('Body:', req.body)
-  next()
-})
+const perfilDir = path.join(__dirname, 'uploads', 'perfis')
+if (!fs.existsSync(perfilDir)) fs.mkdirSync(perfilDir, { recursive: true })
 
-const server = http.createServer(app)
-
-// Configura Socket.IO com CORS liberado para os mesmos origins
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  },
-})
-
-io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id)
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id)
-  })
-})
-
-// Arquivos estáticos
+// 🟢 Servir arquivos estáticos do frontend e uploads
 app.use(express.static(path.join(__dirname, '../frontend')))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use(uploadRoutes)
 
-// Pasta para salvar fotos de perfil
-const perfilDir = path.join(__dirname, 'uploads', 'perfis')
-if (!fs.existsSync(perfilDir)) {
-  fs.mkdirSync(perfilDir, { recursive: true })
-}
-
-// Multer padrão para arquivos gerais
+// Multer geral para upload de arquivos
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, midiaDir)
-  },
+  destination: (req, file, cb) => cb(null, midiaDir),
   filename: (req, file, cb) => {
-    const nomeOriginal = path.basename(file.originalname)
-    const nomeSanitizado = nomeOriginal.replace(/[^a-zA-Z0-9.\-_]/g, '')
+    const nomeSanitizado = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
     const nomeUnico = Date.now() + '-' + nomeSanitizado
     cb(null, nomeUnico)
   },
 })
+const upload = multer({ storage })
 
+// Upload vídeo
 const uploadVideo = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, videoDir),
+    destination: (req, file, cb) => cb(null, midiaDir),
     filename: (req, file, cb) => {
-      const nomeUnico =
-        Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      const nomeSanitizado = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      const nomeUnico = Date.now() + '-' + nomeSanitizado
       cb(null, nomeUnico)
     },
   }),
   fileFilter: (req, file, cb) => {
-    if (/mp4|mov|avi/.test(path.extname(file.originalname).toLowerCase())) {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (/\.mp4|\.mov|\.avi/.test(ext)) {
       cb(null, true)
     } else {
       cb(new Error('Somente vídeos são permitidos'))
@@ -120,17 +82,19 @@ const uploadVideo = multer({
   },
 })
 
+// Upload áudio
 const uploadAudio = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, audioDir),
+    destination: (req, file, cb) => cb(null, midiaDir),
     filename: (req, file, cb) => {
-      const nomeUnico =
-        Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      const nomeSanitizado = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')
+      const nomeUnico = Date.now() + '-' + nomeSanitizado
       cb(null, nomeUnico)
     },
   }),
   fileFilter: (req, file, cb) => {
-    if (/mp3|wav|ogg/.test(path.extname(file.originalname).toLowerCase())) {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (/\.mp3|\.wav|\.ogg/.test(ext)) {
       cb(null, true)
     } else {
       cb(new Error('Somente áudios são permitidos'))
@@ -138,22 +102,12 @@ const uploadAudio = multer({
   },
 })
 
-const upload = multer({ storage })
-
-// Pasta para mídias de mensagens (imagens, áudios, vídeos)
-const midiaDir = path.join(__dirname, 'uploads', 'midias')
-if (!fs.existsSync(midiaDir)) {
-  fs.mkdirSync(midiaDir, { recursive: true })
-}
-
-// Multer para upload de foto de perfil, com filtro para imagens JPEG/PNG
+// Upload perfil (foto)
 const storagePerfil = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, perfilDir)
-  },
+  destination: (req, file, cb) => cb(null, perfilDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase()
-    cb(null, `perfil_${req.user.id}${ext}`)
+    cb(null, `perfil_${req.user?.id || 'anon'}${ext}`)
   },
 })
 const uploadPerfil = multer({
@@ -170,12 +124,32 @@ const uploadPerfil = multer({
   },
 })
 
+// Pool MySQL
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD?.replace(/"/g, ''),
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+})
+
+// Cria servidor http e socket.io
+const server = http.createServer(app)
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
+})
+
 io.on('connection', (socket) => {
   console.log('🟢 Novo cliente conectado:', socket.id)
 
   socket.on('mensagem', (data) => {
     console.log('📨 Mensagem recebida:', data)
-    // Reenvia para todos os outros clientes
     socket.broadcast.emit('mensagem', data)
   })
 
@@ -184,22 +158,19 @@ io.on('connection', (socket) => {
   })
 })
 
-// Middleware de autenticação JWT
+// Middleware autenticação JWT + valida sessão no banco
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
   if (!token) return res.status(401).json({ error: 'Token não fornecido' })
 
   try {
-    // Verifica se o token está registrado e ativo na tabela sessions
     const [rows] = await pool.query('SELECT * FROM sessions WHERE token = ?', [
       token,
     ])
-    if (rows.length === 0) {
+    if (rows.length === 0)
       return res.status(403).json({ error: 'Sessão inválida ou expirada' })
-    }
 
-    // Verifica validade do JWT
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
       if (err) return res.status(403).json({ error: 'Token inválido' })
       req.user = user
@@ -211,7 +182,7 @@ async function authenticateToken(req, res, next) {
   }
 }
 
-// Upload protegido dos arquivos
+// Rota upload com autenticação
 app.post(
   '/upload',
   authenticateToken,
@@ -224,9 +195,9 @@ app.post(
     const usuarioId = req.user.id
 
     const query = `
-    INSERT INTO arquivos (nome, caminho, tipo, usuario_id)
-    VALUES (?, ?, ?, ?)
-  `
+      INSERT INTO arquivos (nome, caminho, tipo, usuario_id)
+      VALUES (?, ?, ?, ?)
+    `
 
     try {
       await pool.query(query, [filename, filepath, mimetype, usuarioId])
@@ -424,7 +395,9 @@ app.post('/messages', upload.single('media'), async (req, res) => {
   const { sender_id, receiver_id, content } = req.body
 
   const file = req.file
-  const media_url = file ? `/uploads/midias/${file.filename}` : null
+  const baseUrl = `http://localhost:${process.env.PORT || 8080}`
+
+  const media_url = file ? `${baseUrl}/uploads/midias/${file.filename}` : null
   const media_type = file ? file.mimetype.split('/')[0] : 'none'
 
   try {

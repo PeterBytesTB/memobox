@@ -1,47 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import socket from '../socket'
-import ReactPlayer from 'react-player'
 import MessageInput from '../components/MessageInput'
+import ReactPlayer from 'react-player'
 
 export default function ChatPage() {
   const [messages, setMessages] = useState([])
+  const bottomRef = useRef(null)
 
   useEffect(() => {
-    // Ouve as mensagens recebidas do servidor
     socket.on('receiveMessage', (msg) => {
       setMessages((prev) => [...prev, msg])
     })
 
-    // Limpa o listener quando o componente desmonta
     return () => {
       socket.off('receiveMessage')
     }
   }, [])
 
-  // Função para enviar mensagem (texto + arquivo)
-  const handleSendMessage = (messageData) => {
-    // messageData: { text, file, media_url, media_type, ... }
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
-    // Monta o objeto a ser enviado pelo socket
+  const handleSendMessage = (messageData) => {
     const socketData = {
-      id: Date.now(), // id simples (pode melhorar)
+      id: Date.now(),
       text: messageData.text || '',
-      sender: 'Você', // ou user.id etc
+      sender: 'Você',
       timestamp: new Date().toISOString(),
       media_url: messageData.media_url || null,
       media_type: messageData.media_type || 'none',
     }
 
-    // Emite para o servidor (vai distribuir pra todo mundo)
     socket.emit('sendMessage', socketData)
-
-    // Atualiza localmente para mostrar a mensagem imediata
     setMessages((prev) => [...prev, socketData])
   }
 
   return (
     <div style={{ maxWidth: 600, margin: 'auto', padding: 20 }}>
       <h2>Chat Memobox</h2>
+
       <div
         style={{
           height: 400,
@@ -49,18 +46,32 @@ export default function ChatPage() {
           border: '1px solid #ccc',
           padding: 10,
           marginBottom: 10,
+          background: '#f9f9f9',
         }}
       >
         {messages.length === 0 && <p>Nenhuma mensagem ainda</p>}
-        {messages.map((msg) => (
-          <div key={msg.id} style={{ marginBottom: 8 }}>
-            <strong>{msg.sender}: </strong>
 
-            {/* Mostrar texto só se existir */}
-            {msg.text && <span>{msg.text}</span>}
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            style={{
+              marginBottom: 12,
+              textAlign: msg.sender === 'Você' ? 'right' : 'left',
+              backgroundColor: msg.sender === 'Você' ? '#dcf8c6' : '#ffffff',
+              padding: 8,
+              borderRadius: 6,
+              maxWidth: '80%',
+              marginLeft: msg.sender === 'Você' ? 'auto' : 0,
+              marginRight: msg.sender === 'Você' ? 0 : 'auto',
+            }}
+          >
+            <div>
+              <strong>{msg.sender}: </strong>
+              {msg.text && <span>{msg.text}</span>}
+            </div>
 
             {msg.media_url && (
-              <div style={{ marginTop: 4 }}>
+              <div style={{ marginTop: 6 }}>
                 {msg.media_type === 'image' && (
                   <img
                     src={msg.media_url}
@@ -79,17 +90,22 @@ export default function ChatPage() {
                     controls
                     width="100%"
                     height={msg.media_type === 'video' ? 200 : 50}
-                    playing={false}
+                    style={{ borderRadius: 4, marginTop: 4 }}
                   />
                 )}
               </div>
             )}
 
-            <div style={{ fontSize: 10, color: '#999' }}>
-              {new Date(msg.timestamp).toLocaleTimeString()}
+            <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+              {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </div>
           </div>
         ))}
+
+        <div ref={bottomRef} />
       </div>
 
       <MessageInput onSendMessage={handleSendMessage} />
